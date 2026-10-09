@@ -1,0 +1,22 @@
+# conda env create -f environment.yml   →   conda activate lod1gui
+name: lod1gui
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy>=2
+  - scipy
+  - pandas
+  - geopandas>=1.0
+  - pyogrio
+  - shapely>=2
+  - pyproj
+  - rasterio
+  - laspy>=2.5
+  - lazrs-python        # .laz support
+  - tqdm
+  - libblas=*=*openblas # keeps MKL (≈200 MB) out of the exe
+  - pyinstaller         # building the exe only
+  - pip
+  - pip:
+      - cloth-simulation-filter   # CSF ground filter (Auto DTM)

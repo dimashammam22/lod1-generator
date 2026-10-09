@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generator LOD1</title>
+  <script>
+    // Apply the saved (or system) theme before first paint to avoid a flash.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('generator-lod1-theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <link rel="icon" href="logo.png" type="image/png">
+  <!-- Optional web font; offline the UI falls back to Segoe UI / Consolas. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Icon sprite. Use with <svg class="ic"><use href="#i-name"/></svg> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-mark" src="logo.png" alt="">
+    <div>
+      <div class="brand-name">Generator LOD1</div>
+      <div class="brand-sub">building heights from point clouds</div>
+    </div>
+  </div>
+  <nav class="nav" aria-label="Sections">
+    <a href="#run" data-view="run" class="active">Run</a>
+    <a href="#results" data-view="results">Results</a>
+    <a href="#history" data-view="history">History</a>
+  </nav>
+  <div class="top-right">
+    <div class="engine" id="engine"><span class="dot"></span><span id="engine-text">Connecting…</span></div>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" title="Switch to light mode">
+      <svg class="i-sun"><use href="#i-sun"/></svg><svg class="i-moon"><use href="#i-moon"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ============================== RUN ============================== -->
+<div class="view run" id="view-run">
+  <aside class="setup">
+
+    <section class="panel">
+      <h2 class="step"><span>01</span>Data</h2>
+      <div class="field">
+        <label for="input">Input folder</label>
+        <div class="row">
+          <input id="input" type="text" spellcheck="false" autocomplete="off" placeholder="Folder with LAS + GPKG (subfolders allowed)">
+          <button type="button" class="btn" data-browse="input">Browse</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="output">Output folder</label>
+        <div class="row">
+          <input id="output" type="text" spellcheck="false" autocomplete="off" placeholder="Where GeoJSON / DTM are written">
+          <button type="button" class="btn" data-browse="output">Browse</button>
+        </div>
+      </div>
+      <div class="facts" id="facts">
+        <div class="fact"><span>LAS</span><b>—</b></div>
+        <div class="fact"><span>Footprints</span><b>—</b></div>
+        <div class="fact"><span>CRS</span><b>—</b></div>
+        <div class="fact"><span>Classified</span><b>—</b></div>
+      </div>
+      <p class="note" id="facts-note" hidden></p>
+    </section>
+
+    <section class="panel">
+      <h2 class="step"><span>02</span>Ground</h2>
+      <fieldset class="choices">
+        <legend>Ground source</legend>
+        <label class="choice">
+          <input type="radio" name="ground" value="las">
+          <span><b>LAS ground points</b><small>Uses class 2 from a classified LAS</small></span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="ground" value="dtm">
+          <span><b>External DTM</b><small>GeoTIFF / VRT or a folder of tiles</small></span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="ground" value="auto" checked>
+          <span><b>Auto DTM from LiDAR</b><small>CSF ground filter, footprints excluded, TIN to raster</small></span>
+        </label>
+      </fieldset>
+      <p class="note warn" id="ground-warn" hidden>This LAS has no ground class. Use Auto DTM or an external DTM.</p>
+
+      <div class="grid2 only-auto">
+        <div class="field">
+          <label for="dtm-res">DTM resolution (m)</label>
+          <input id="dtm-res" type="number" min="0.1" max="5" step="0.1" value="0.5">
+        </div>
+        <div class="field">
+          <label for="terrain">Terrain</label>
+          <select id="terrain">
+            <option value="2">Hilly (rigidness 2)</option>
+            <option value="3">Flat (rigidness 3)</option>
+            <option value="1">Steep (rigidness 1)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="only-dtm">
+        <div class="field">
+          <label for="dtm">DTM path</label>
+          <div class="row">
+            <input id="dtm" type="text" spellcheck="false" autocomplete="off" placeholder="GeoTIFF / VRT, or a folder of tiles">
+            <button type="button" class="btn" data-browse="dtm" data-kind="raster">File</button>
+            <button type="button" class="btn" data-browse="dtm">Folder</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="dtm-offset">Vertical offset (m)</label>
+          <input id="dtm-offset" type="number" step="0.01" value="0" class="short">
+          <small class="hint">Added to the DTM, e.g. the geoid undulation when the LAS is in ellipsoid height and the DTM in EGM2008. The log suggests a value when the datums differ.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="step"><span>03</span>Height rule</h2>
+      <div class="grid3">
+        <div class="field">
+          <label for="percentile">Percentile</label>
+          <input id="percentile" type="number" min="1" max="100" step="1" value="95">
+        </div>
+        <div class="field not-las">
+          <label for="min-height">Min height (m)</label>
+          <input id="min-height" type="number" min="0" step="0.5" value="2.0">
+        </div>
+        <div class="field not-las">
+          <label for="inner-buffer">Inner buffer (m)</label>
+          <input id="inner-buffer" type="number" min="0" step="0.1" value="0.5">
+        </div>
+      </div>
+      <p class="note" id="rule-text"></p>
+    </section>
+
+    <div class="actions">
+      <button type="button" class="btn-primary" id="start">Start processing</button>
+      <button type="button" class="btn-stop" id="stop" disabled>Stop</button>
+    </div>
+  </aside>
+
+  <main class="run-main">
+    <section class="panel map-card">
+      <div class="card-head">
+        <h2>Footprint preview</h2>
+        <span class="meta" id="map-meta">Choose an input folder to preview footprints</span>
+        <select id="tile-select" class="small" hidden aria-label="Tile"></select>
+        <div class="seg" role="group" aria-label="Map colouring">
+          <button type="button" data-map="bhm" class="on">BHM</button>
+          <button type="button" data-map="dtm">DTM</button>
+          <button type="button" data-map="qc">QC flags</button>
+        </div>
+      </div>
+      <div class="map" id="map">
+        <svg id="map-svg" role="img" aria-label="Building footprints coloured by height"></svg>
+        <div class="map-empty" id="map-empty">No footprints loaded</div>
+        <div class="map-tools">
+          <button type="button" id="zoom-in" aria-label="Zoom in"><svg class="ic"><use href="#i-plus"/></svg></button>
+          <button type="button" id="zoom-out" aria-label="Zoom out"><svg class="ic"><use href="#i-minus"/></svg></button>
+          <button type="button" id="zoom-fit" aria-label="Fit to footprints"><svg class="ic"><use href="#i-fit"/></svg></button>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="tooltip" id="tooltip" hidden></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="progress-head">
+        <div>
+          <div class="label">Overall</div>
+          <div class="big" id="pct">0.0<small>%</small></div>
+        </div>
+        <div class="timers">
+          <div><div class="label">Elapsed</div><div class="num" id="elapsed">00:00:00</div></div>
+          <div><div class="label">Remaining</div><div class="num accent" id="eta">--:--:--</div></div>
+          <div><div class="label">Tile</div><div class="num" id="tile-count">– / –</div></div>
+        </div>
+      </div>
+      <div class="bar"><div class="fill" id="fill"></div></div>
+      <div class="status" id="status">Ready</div>
+      <ol class="pipeline" id="pipeline"></ol>
+    </section>
+
+    <section class="panel log-card">
+      <div class="card-head">
+        <h2>Log</h2>
+        <span class="badge" id="warn-badge" hidden></span>
+        <button type="button" class="btn small" id="copy-log">Copy</button>
+        <button type="button" class="btn small" id="clear-log">Clear</button>
+      </div>
+      <div class="log" id="log"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============================== RESULTS ============================== -->
+<div class="view results" id="view-results" hidden>
+  <div class="empty-state" id="results-empty">
+    <h2>No results yet</h2>
+    <p>Run a batch from the Run tab; heights, QC flags and output files appear here.</p>
+  </div>
+  <div id="results-body" hidden>
+    <div class="results-title">
+      <div>
+        <div class="eyebrow" id="res-eyebrow"></div>
+        <h1 id="res-title"></h1>
+      </div>
+      <div class="row-wrap">
+        <button type="button" class="btn" id="open-output">Open output folder</button>
+        <button type="button" class="btn-primary compact" id="run-again">Run again</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>Footprints with height</span><b id="st-with"></b></div>
+      <div class="stat"><span>Median BHM</span><b id="st-median"></b></div>
+      <div class="stat"><span>Needs review</span><b id="st-review" class="amber"></b></div>
+      <div class="stat"><span>Bare ground vs DTM</span><b id="st-ground" class="accent"></b></div>
+    </div>
+
+    <div class="results-cols">
+      <section class="panel hist-card">
+        <div class="card-head"><h2>Height distribution</h2><span class="meta">footprints per 1 m band</span></div>
+        <div class="hist" id="hist"></div>
+        <div class="hist-axis" id="hist-axis"></div>
+      </section>
+      <section class="panel qc-card">
+        <div class="card-head"><h2>Quality flags</h2><span class="meta">column <code>qc_flag</code></span></div>
+        <ul class="flags" id="flags"></ul>
+        <button type="button" class="btn wide" id="show-flags">Show flagged footprints on map</button>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="card-head"><h2>Output files</h2></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>File</th><th>Contents</th><th>CRS</th><th></th></tr></thead>
+          <tbody id="outputs"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="card-head"><h2>Run parameters</h2></div>
+      <dl class="params" id="params"></dl>
+    </section>
+  </div>
+</div>
+
+<!-- ============================== HISTORY ============================== -->
+<div class="view history" id="view-history" hidden>
+  <section class="panel">
+    <div class="card-head"><h2>Runs in this session</h2><span class="meta">each run also writes run_report.json to its output folder</span></div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Started</th><th>Ground source</th><th>Status</th><th>Footprints</th><th>Duration</th><th>Output</th><th></th></tr></thead>
+        <tbody id="history"></tbody>
+      </table>
+    </div>
+    <p class="note" id="history-empty">No runs yet.</p>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

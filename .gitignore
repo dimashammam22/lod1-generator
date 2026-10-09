@@ -1,0 +1,31 @@
+# Build output (scripts\build_*.bat)
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+
+# Data never belongs in the repo: point clouds, footprints, rasters, results
+*.las
+*.laz
+*.gpkg
+*.tif
+*.tiff
+*.vrt
+*.geojson
+run_report.json
+
+# Archives
+*.rar
+*.zip
+*.7z
