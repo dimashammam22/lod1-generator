@@ -1,48 +1,48 @@
 # Generator LOD1
 
-Menghitung tinggi bangunan (**BHM**, *Building Height Model*) untuk model **LOD1** dari point cloud LiDAR (`.las` / `.laz`) dan footprint bangunan (`.gpkg`). Hasilnya GeoJSON (EPSG:4326) berisi footprint dengan atribut `BHM` dalam meter.
+Computes building heights (**BHM**, *Building Height Model*) for **LOD1** models from LiDAR point clouds (`.las` / `.laz`) and building footprints (`.gpkg`). The result is a GeoJSON (EPSG:4326) of the footprints with a `BHM` attribute in metres.
 
-Tersedia dua cara menjalankan:
-- **Aplikasi web lokal** (`app/server.py`, atau `GeneratorLOD1-Web.exe`): UI di browser, proses tetap berjalan di PC sendiri.
-- **CLI** (`python -m lod1`): untuk batch dan otomatisasi.
+There are two ways to run it:
+- **Local web app** (`app/server.py`, or `GeneratorLOD1-Web.exe`): the UI runs in the browser while processing stays on your own PC.
+- **CLI** (`python -m lod1`): for batch jobs and automation.
 
-## Sumber tanah (ground source)
+## Ground sources
 
-| Mode | Kapan dipakai | Cara kerja |
+| Mode | When to use | How it works |
 |---|---|---|
-| `auto` — **Auto DTM from LiDAR** | LAS belum terklasifikasi, tidak punya DTM | Noise dibuang → titik di footprint dikeluarkan → ground filter **CSF** → DTM dari TIN (0.5 m) → BHM |
-| `dtm` — **External DTM** | Punya DTM (GeoTIFF/VRT, atau folder tile) | BHM diukur terhadap DTM + offset datum vertikal. Selisih datum dideteksi otomatis |
-| `las` — **LAS ground (class 2)** | LAS sudah terklasifikasi | Tinggi terhadap titik ground terdekat (algoritma awal) |
+| `auto`: **Auto DTM from LiDAR** | The LAS is unclassified and you have no DTM | Noise removed → points inside footprints excluded → **CSF** ground filter → DTM from a TIN (0.5 m) → BHM |
+| `dtm`: **External DTM** | You have a DTM (GeoTIFF/VRT, or a folder of tiles) | BHM is measured against the DTM + a vertical-datum offset. Datum mismatches are detected automatically |
+| `las`: **LAS ground (class 2)** | The LAS is already classified | Height above the nearest ground point (original algorithm) |
 
-Pada mode `auto` dan `dtm`: **BHM = P95** dari tinggi di atas tanah untuk titik di dalam footprint. Footprint > 20 m² dikecilkan 0.5 m ke dalam, titik < 2 m dan titik vegetasi (kelas 5 / multi-return) diabaikan. GeoJSON juga berisi `n_points` dan `qc_flag` (`ok`, `low_structure`, `few_points`, `vegetation_cover`, `edge_of_data`).
+In the `auto` and `dtm` modes, **BHM = P95** of the height above ground of the points inside each footprint. Footprints larger than 20 m² are shrunk inward by 0.5 m, and points lower than 2 m as well as vegetation points (class 5 / multi-return) are ignored. The GeoJSON also contains `n_points` and `qc_flag` (`ok`, `low_structure`, `few_points`, `vegetation_cover`, `edge_of_data`).
 
-## Struktur data input
+## Input layout
 
-Setiap LAS/LAZ memakai GPKG yang ada **di folder yang sama**, apa pun namanya. Kalau dalam satu folder ada lebih dari satu GPKG, hanya GPKG yang namanya sama dengan LAS yang dipakai.
+Each LAS/LAZ uses the GPKG **in the same folder**, whatever its name. If a folder holds more than one GPKG, only the one named like the LAS is used.
 
 ```
 INPUT\
 ├── AreaA\
 │   ├── tile1.las
 │   ├── tile2.las
-│   └── bangunan.gpkg
+│   └── buildings.gpkg
 └── AreaB\
     ├── tile3.laz
-    └── footprint.gpkg
+    └── footprints.gpkg
 ```
 
-Output mengikuti struktur subfolder: `OUTPUT\AreaA\tile1_lod1.geojson` (+ `tile1_dtm.tif` pada mode `auto`), ditambah `run_report.json`.
+The output mirrors the subfolder structure, for example `OUTPUT\AreaA\tile1_lod1.geojson` (plus `tile1_dtm.tif` in `auto` mode), along with a `run_report.json`.
 
-## Instalasi
+## Installation
 
 ```bash
 conda env create -f environment.yml
 conda activate lod1gui
 ```
 
-## Menjalankan
+## Usage
 
-Aplikasi web (browser terbuka otomatis di `http://localhost:8765`):
+Web app (the browser opens `http://localhost:8765` automatically):
 
 ```bash
 python app/server.py
@@ -56,32 +56,32 @@ python -m lod1 "D:\data\input" "D:\data\output" --ground dtm --dtm "D:\dem\demna
 python -m lod1 --help
 ```
 
-Sebagai library:
+As a library:
 
 ```python
 from lod1 import batch_lod1_from_basedir
 summary = batch_lod1_from_basedir("input", "output", ground_mode="auto")
 ```
 
-## Build exe
+## Building the exe
 
 ```bash
 scripts\build_web.bat
 ```
 
-Hasilnya ada di `dist\GeneratorLOD1-Web.exe`. Exe ini bisa dibagikan sendirian, tanpa perlu Python. Folder `web\` yang diletakkan di samping exe akan menimpa UI bawaan, jadi tampilan bisa diubah tanpa build ulang.
+The result is `dist\GeneratorLOD1-Web.exe`. This exe can be shared on its own, with no Python required. A `web\` folder placed next to the exe overrides the built-in UI, so the look can be changed without rebuilding.
 
-## Struktur repository
+## Repository layout
 
 ```
-lod1/            algoritma (core.py) + CLI (__main__.py)
-app/server.py    server lokal untuk UI web
-app/web/         UI web (HTML/CSS/JS)
-assets/          ikon aplikasi
-scripts/         skrip build exe
+lod1/            algorithms (core.py) + CLI (__main__.py)
+app/server.py    local server for the web UI
+app/web/         web UI (HTML/CSS/JS)
+assets/          application icon
+scripts/         exe build script
 ```
 
-## Catatan teknis
-- **Server web hanya mendengarkan `127.0.0.1`.** Request dengan Host asing dan POST non-JSON ditolak.
-- **Skrip build membersihkan `PATH`.** DLL GDAL/PROJ dari software GIS lain (misalnya Geoflow) bisa bentrok kalau ikut terbaca.
-- **Data tidak di-commit.** `.gitignore` mengecualikan `*.las`, `*.laz`, `*.gpkg`, `*.tif`, `*.geojson`, `build/`, dan `dist/`.
+## Technical notes
+- **The web server only listens on `127.0.0.1`.** Requests with a foreign Host header and non-JSON POSTs are rejected.
+- **The build script cleans `PATH`.** GDAL/PROJ DLLs from other GIS software (for example Geoflow) can conflict if they get picked up.
+- **Data is never committed.** `.gitignore` excludes `*.las`, `*.laz`, `*.gpkg`, `*.tif`, `*.geojson`, `build/` and `dist/`.
